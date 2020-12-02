@@ -1,9 +1,15 @@
 % Displays data from a single electrode
 
-function displaySingleChannelGRF(subjectName,expDate,protocolName,folderSourceString,gridType)
+% In case the stimulus takes properties from both gabors (such as plaids or
+% color stimuli), use sideChoice to specify which of the two side to use
+% for each parameter.
+
+function displaySingleChannelGRF(subjectName,expDate,protocolName,folderSourceString,gridType,gridLayout,sideChoice)
 
 if ~exist('folderSourceString','var');  folderSourceString='F:';        end
-if ~exist('gridType','var');             gridType='ECoG';               end
+if ~exist('gridType','var');            gridType='Microelectrode';      end
+if ~exist('gridLayout','var');          gridLayout=2;                   end
+if ~exist('sideChoice','var');          sideChoice=[];                  end
 
 folderName = fullfile(folderSourceString,'data',subjectName,gridType,expDate,protocolName);
 
@@ -18,7 +24,7 @@ folderSpikes = fullfile(folderSegment,'Spikes');
 [neuralChannelsStored,SourceUnitIDs] = loadspikeInfo(folderSpikes);
 
 % Get Combinations
-[~,aValsUnique,eValsUnique,sValsUnique,fValsUnique,oValsUnique,cValsUnique,tValsUnique] = loadParameterCombinations(folderExtract);
+[~,aValsUnique,eValsUnique,sValsUnique,fValsUnique,oValsUnique,cValsUnique,tValsUnique] = loadParameterCombinations(folderExtract,sideChoice);
 
 % Get properties of the Stimulus
 % stimResults = loadStimResults(folderExtract);
@@ -336,7 +342,7 @@ uicontrol('Parent',hPlotOptionsPanel,'Unit','Normalized', ...
 % Get electrode array information
 electrodeGridPos = [staticStartPos panelStartHeight staticPanelWidth panelHeight];
 hElectrodes = showElectrodeLocations(electrodeGridPos,analogChannelsStored(get(hAnalogChannel,'val')), ...
-    colorNames(get(hChooseColor,'val')),[],1,0,gridType,subjectName);
+    colorNames(get(hChooseColor,'val')),[],1,0,gridType,subjectName,gridLayout);
 
 % Make plot for RFMap, centerRFMap and main Map
 if length(aValsUnique)>=5
@@ -447,17 +453,17 @@ hSigmaPlot        = getPlotHandles(1,length(sValsUnique),sigmaGrid,0.002);
             analogChannelPos = get(hAnalogChannel,'val');
             analogChannelString = analogChannelStringArray{analogChannelPos};
             rfMapVals = plotLFPData1Channel(plotHandles,analogChannelString,s,f,o,c,t,folderLFP,...
-                analysisType,timeVals,plotColor,blRange,stRange,folderName);
+                analysisType,timeVals,plotColor,blRange,stRange,folderName,sideChoice);
             plotLFPData1Parameter1Channel(hTemporalFreqPlot,analogChannelString,a,e,s,f,o,c,[],folderLFP,...
-                analysisType,timeVals,plotColor,blRange,stRange,folderName);
+                analysisType,timeVals,plotColor,blRange,stRange,folderName,sideChoice);
             plotLFPData1Parameter1Channel(hContrastPlot,analogChannelString,a,e,s,f,o,[],t,folderLFP,...
-                analysisType,timeVals,plotColor,blRange,stRange,folderName);
+                analysisType,timeVals,plotColor,blRange,stRange,folderName,sideChoice);
             plotLFPData1Parameter1Channel(hOrientationPlot,analogChannelString,a,e,s,f,[],c,t,folderLFP,...
-                analysisType,timeVals,plotColor,blRange,stRange,folderName);
+                analysisType,timeVals,plotColor,blRange,stRange,folderName,sideChoice);
             plotLFPData1Parameter1Channel(hSpatialFreqPlot,analogChannelString,a,e,s,[],o,c,t,folderLFP,...
-                analysisType,timeVals,plotColor,blRange,stRange,folderName);
+                analysisType,timeVals,plotColor,blRange,stRange,folderName,sideChoice);
             plotLFPData1Parameter1Channel(hSigmaPlot,analogChannelString,a,e,[],f,o,c,t,folderLFP,...
-                analysisType,timeVals,plotColor,blRange,stRange,folderName);
+                analysisType,timeVals,plotColor,blRange,stRange,folderName,sideChoice);
 
             if analogChannelPos<=length(analogChannelsStored)
                 channelNumber = analogChannelsStored(analogChannelPos);
@@ -491,7 +497,7 @@ hSigmaPlot        = getPlotHandles(1,length(sValsUnique),sigmaGrid,0.002);
         rescaleData(hOrientationPlot,xMin,xMax,getYLims(hOrientationPlot));
         rescaleData(hSpatialFreqPlot,xMin,xMax,getYLims(hSpatialFreqPlot));
         rescaleData(hSigmaPlot,xMin,xMax,getYLims(hSigmaPlot));
-        showElectrodeLocations(electrodeGridPos,channelNumber,plotColor,hElectrodes,holdOnState,0,gridType,subjectName);
+        showElectrodeLocations(electrodeGridPos,channelNumber,plotColor,hElectrodes,holdOnState,0,gridType,subjectName,gridLayout);
     end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     function rescaleY_Callback(~,~)
@@ -599,14 +605,14 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Main function that plots the data
 function rfMapVals = plotLFPData1Channel(plotHandles,channelString,s,f,o,c,t,folderLFP,...
-analysisType,timeVals,plotColor,blRange,stRange,folderName)
+analysisType,timeVals,plotColor,blRange,stRange,folderName,sideChoice)
 
 folderExtract = fullfile(folderName,'extractedData');
 folderSegment = fullfile(folderName,'segmentedData');
 
 titleFontSize = 10;
 
-[parameterCombinations,aValsUnique,eValsUnique] = loadParameterCombinations(folderExtract);
+[parameterCombinations,aValsUnique,eValsUnique] = loadParameterCombinations(folderExtract,sideChoice);
 [numRows,numCols] = size(plotHandles);
 
 % Get the data
@@ -710,7 +716,7 @@ end
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function plotLFPData1Parameter1Channel(plotHandles,channelString,a,e,s,f,o,c,t,folderLFP,...
-analysisType,timeVals,plotColor,blRange,stRange,folderName)
+analysisType,timeVals,plotColor,blRange,stRange,folderName,sideChoice)
 
 folderExtract = fullfile(folderName,'extractedData');
 folderSegment = fullfile(folderName,'segmentedData');
@@ -722,7 +728,7 @@ timeForComputation = [40 100]/1000; % s
 freqForComputation = [40 60]; % Hz
 
 [parameterCombinations,aValsUnique,eValsUnique,sValsUnique,...
-    fValsUnique,oValsUnique,cValsUnique,tValsUnique] = loadParameterCombinations(folderExtract);
+    fValsUnique,oValsUnique,cValsUnique,tValsUnique] = loadParameterCombinations(folderExtract,sideChoice);
 [~,numCols] = size(plotHandles);
 
 % Get the data
@@ -910,7 +916,7 @@ titleFontSize = 12;
 folderExtract = fullfile(folderName,'extractedData');
 folderSegment = fullfile(folderName,'segmentedData');
 
-[parameterCombinations,aValsUnique,eValsUnique] = loadParameterCombinations(folderExtract);
+[parameterCombinations,aValsUnique,eValsUnique] = loadParameterCombinations(folderExtract,sideChoice);
 [numRows,numCols] = size(plotHandles);
 
 % Get the data
@@ -980,7 +986,7 @@ folderExtract = fullfile(folderName,'extractedData');
 folderSegment = fullfile(folderName,'segmentedData');
 
 [parameterCombinations,aValsUnique,eValsUnique,sValsUnique,...
-    fValsUnique,oValsUnique,cValsUnique,tValsUnique] = loadParameterCombinations(folderExtract);
+    fValsUnique,oValsUnique,cValsUnique,tValsUnique] = loadParameterCombinations(folderExtract,sideChoice);
 [~,numCols] = size(plotHandles);
 
 % Get the data
@@ -1121,7 +1127,7 @@ titleFontSize = 12;
 folderExtract = fullfile(folderName,'extractedData');
 folderSegment = fullfile(folderName,'segmentedData');
 
-[parameterCombinations,aValsUnique,eValsUnique] = loadParameterCombinations(folderExtract);
+[parameterCombinations,aValsUnique,eValsUnique] = loadParameterCombinations(folderExtract,sideChoice);
 [numRows,numCols] = size(plotHandles);
 
 % Get the analog data
@@ -1338,6 +1344,7 @@ end
 % load Data
 function [analogChannelsStored,timeVals,goodStimPos,analogInputNums] = loadlfpInfo(folderLFP) %#ok<*STOUT>
 load(fullfile(folderLFP,'lfpInfo.mat'));
+analogChannelsStored=sort(analogChannelsStored);
 if ~exist('analogInputNums','var')
     analogInputNums=[];
 end
@@ -1346,19 +1353,30 @@ function [neuralChannelsStored,SourceUnitID] = loadspikeInfo(folderSpikes)
 fileName = fullfile(folderSpikes,'spikeInfo.mat');
 if exist(fileName,'file')
     load(fileName);
+    [neuralChannelsStored,I]=sort(neuralChannelsStored);
+    SourceUnitID=SourceUnitID(I);
 else
     neuralChannelsStored=[];
     SourceUnitID=[];
 end
 end
 function [parameterCombinations,aValsUnique,eValsUnique,sValsUnique,...
-    fValsUnique,oValsUnique,cValsUnique,tValsUnique] = loadParameterCombinations(folderExtract)
+    fValsUnique,oValsUnique,cValsUnique,tValsUnique] = loadParameterCombinations(folderExtract,sideChoice)
 
-load(fullfile(folderExtract,'parameterCombinations.mat'));
+p = load(fullfile(folderExtract,'parameterCombinations.mat'));
 
-if ~exist('sValsUnique','var');    sValsUnique=rValsUnique;             end
-if ~exist('cValsUnique','var');    cValsUnique=100;                     end
-if ~exist('tValsUnique','var');    tValsUnique=0;                       end
+if ~isfield(p,'parameterCombinations2') % Not a plaid stimulus
+    load(fullfile(folderExtract,'parameterCombinations.mat'));
+    
+    if ~exist('sValsUnique','var');    sValsUnique=rValsUnique;             end
+    if ~exist('cValsUnique','var');    cValsUnique=100;                     end
+    if ~exist('tValsUnique','var');    tValsUnique=0;                       end
+    
+else
+    [parameterCombinations,aValsUnique,eValsUnique,sValsUnique,...
+        fValsUnique,oValsUnique,cValsUnique,tValsUnique] = makeCombinedParameterCombinations(folderExtract,sideChoice);
+end
+
 end
 function badTrials = loadBadTrials(badTrialFile)
 load(badTrialFile);

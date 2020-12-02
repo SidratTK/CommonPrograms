@@ -13,19 +13,24 @@
 % This is copied from extractDigitalDataGRF. This reads all the digital
 % data from LL file
 
-function [goodStimNums,goodStimTimes,side] = extractDigitalDataGRFLL(folderExtract,ignoreTargetStimFlag,frameRate)
+% Added option to store properties of both gabors even when one is hidden
+% (which can happen for color stimuli for example)
+
+function [goodStimNums,goodStimTimes,side] = extractDigitalDataGRFLL(folderExtract,ignoreTargetStimFlag,frameRate,maxDiffCutoffMS,recordBothStimFlag)
 
 if ~exist('ignoreTargetStimFlag','var');   ignoreTargetStimFlag=0;      end
 if ~exist('frameRate','var');              frameRate=100;               end
+if ~exist('maxDiffCutoffMS','var');        maxDiffCutoffMS=5;           end
+if ~exist('recordBothStimFlag','var');     recordBothStimFlag=0;        end
 
-stimResults = readDigitalCodesGRF(folderExtract,frameRate); % writes stimResults and trialResults
+stimResults = readDigitalCodesGRF(folderExtract,frameRate,maxDiffCutoffMS,recordBothStimFlag); % writes stimResults and trialResults
 side = stimResults.side;
 [goodStimNums,goodStimTimes] = getGoodStimNumsGRF(folderExtract,ignoreTargetStimFlag); % Good stimuli
 save(fullfile(folderExtract,'goodStimNums.mat'),'goodStimNums','goodStimTimes');
 end
 
 % GRF Specific protocols
-function [stimResults,trialResults,trialEvents] = readDigitalCodesGRF(folderExtract,frameRate)
+function [stimResults,trialResults,trialEvents] = readDigitalCodesGRF(folderExtract,frameRate,maxDiffCutoffMS,recordBothStimFlag)
 
 if ~exist('frameRate','var');              frameRate=100;               end
 kForceQuit=7;
@@ -62,14 +67,46 @@ end
 % Load Lablib data structure
 load(fullfile(folderExtract,'LL.mat'));
 
-if sum(LL.stimType1)>0
-    activeSide=0;
-elseif sum(LL.stimType2)>0
-    activeSide=1;
+if recordBothStimFlag
+    activeSide=3;
+else
+    if sum(LL.stimType1)>0 && sum(LL.stimType2)>0 % Plaids - Siddhesh Sep 8, 2018
+        activeSide=3;
+    elseif sum(LL.stimType1)>0 && sum(LL.stimType2)==0
+        activeSide=0;
+    elseif sum(LL.stimType2)>0 && sum(LL.stimType1)==0
+        activeSide=1;
+    else
+        error('No stimuli recorded in Lablib stream!');
+    end
 end
 
 %%%%%%%%%%%%%%%%% Get info from LL to construct stimResults %%%%%%%%%%%%%%%
-if activeSide==0 % Map0
+if activeSide==3 % Plaids - Siddhesh Sep 8, 2018
+    if recordBothStimFlag
+        validMap = union(find(LL.stimType1>0),find(LL.stimType2>0)); % Record when either one is present
+    else
+        validMap = intersect(find(LL.stimType1>0),find(LL.stimType2>0));
+    end
+    aziLL = reshape([LL.azimuthDeg1(validMap);LL.azimuthDeg2(validMap)],1,[]);
+    eleLL = reshape([LL.elevationDeg1(validMap);LL.elevationDeg2(validMap)],1,[]);
+    sigmaLL = reshape([LL.sigmaDeg1(validMap);LL.sigmaDeg2(validMap)],1,[]);
+    
+    if isfield(LL,'radiusDeg1')
+        radiusExists = 1;
+        radiusLL = reshape([LL.radiusDeg1(validMap);LL.radiusDeg2(validMap)],1,[]);
+    else
+        radiusExists = 0;
+    end
+    sfLL = reshape([LL.spatialFreqCPD1(validMap);LL.spatialFreqCPD2(validMap)],1,[]);
+    oriLL = reshape([LL.orientationDeg1(validMap);LL.orientationDeg2(validMap)],1,[]);
+    conLL = reshape([LL.contrastPC1(validMap);LL.contrastPC2(validMap)],1,[]);
+    tfLL = reshape([LL.temporalFreqHz1(validMap);LL.temporalFreqHz2(validMap)],1,[]);
+    timeLL = LL.time2(validMap)/1000; % consider plaid when both left and right have been drawn
+    mappingPlaidTimes = timeLL;
+    taskType = LL.stimType1(validMap);
+    
+elseif activeSide==0 % Map0
     validMap = find(LL.stimType1>0);
     aziLL = LL.azimuthDeg1(validMap);
     eleLL = LL.elevationDeg1(validMap);
@@ -137,8 +174,9 @@ diffTD = diff(trialStartTimes); diffTL = diff(trialStartTimesLL);
 maxDiffMS = 1000*max(abs(diffTD(:) - diffTL(:)));
 dEOT = max(abs(diff(eotCodes(:)-eotCodesLL(:))));
 
-maxDiffCutoffMS = 5; % throw an error if the difference exceeds 5 ms
-if maxDiffMS > maxDiffCutoffMS || dEOT > 0
+if maxDiffMS > maxDiffCutoffMS
+    error(['Maximum difference between LL and LFP/EEG start times: ' num2str(maxDiffMS) ' ms exceeds the threshold of ' num2str(maxDiffCutoffMS) ' ms']);
+elseif dEOT > 0
     error('The digital codes do not match with the LL data...');
 else
     disp(['Maximum difference between LL and LFP/EEG start times: ' num2str(maxDiffMS) ' ms']);
@@ -194,7 +232,10 @@ for i=1:numTrials
         stimResults.trialNumber(pos+1:pos+numStims(i)) = i;
         stimResults.stimPosition(pos+1:pos+numStims(i)) = 1:numStims(i);
         
-        if stimResults.side==0
+        if stimResults.side==3 % Plaids - Siddhesh Sep 8, 2018
+            stimResults.stimOnFrame(pos+1:pos+numStims(i)) = ...
+                (mappingPlaidTimes(pos+1:pos+numStims(i)) - mappingPlaidTimes(pos+1))*frameRate;
+        elseif stimResults.side==0
             stimResults.stimOnFrame(pos+1:pos+numStims(i)) = ...
                 (mapping0Times(pos+1:pos+numStims(i)) - mapping0Times(pos+1))*frameRate;
         elseif stimResults.side==1

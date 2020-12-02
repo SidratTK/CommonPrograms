@@ -16,16 +16,23 @@
 % 19 March 2015: Adding endTime (trialEnd) in GRF.
 % 9th October 2015: Adding endTime and trialCertify in SRC.
 
-function LLFileExistsFlag = saveLLData(subjectName,expDate,protocolName,folderSourceString,gridType,frameRate)
+function LLFileExistsFlag = saveLLData(subjectName,expDate,protocolName,folderSourceString,gridType,frameRate,folderDestinationString)
+
+if ~exist('folderDestinationString','var'); folderDestinationString=folderSourceString; end
 
 datFileName = fullfile(folderSourceString,'data','rawData',[subjectName expDate],[subjectName expDate protocolName '.dat']);
+
+if ~exist(datFileName,'file')
+    datFileName = fullfile(folderSourceString,'data','rawData',subjectName,[subjectName expDate],[subjectName expDate protocolName '.dat']);
+end
+
 if ~exist(datFileName,'file')
     disp('Lablib data file does not exist');
     LLFileExistsFlag = 0;
 else
     disp('Working on Lablib data file ...');
     LLFileExistsFlag = 1;
-    folderName    = fullfile(folderSourceString,'data',subjectName,gridType,expDate,protocolName);
+    folderName    = fullfile(folderDestinationString,'data',subjectName,gridType,expDate,protocolName);
     folderExtract = fullfile(folderName,'extractedData');
     makeDirectory(folderExtract);
     
@@ -233,6 +240,9 @@ function LL = getStimResultsLLGRF(subjectName,expDate,protocolName,folderSourceS
 
 datFileName = fullfile(folderSourceString,'data','rawData',[subjectName expDate],[subjectName expDate protocolName '.dat']);
 
+if ~exist(datFileName,'file')
+    datFileName = fullfile(folderSourceString,'data','rawData',subjectName,[subjectName expDate],[subjectName expDate protocolName '.dat']);
+end
 % Get Lablib data
 header = readLLFile('i',datFileName);
 
